@@ -11,7 +11,7 @@ import java.util.*;
 public class CoreHtmlNodeRenderer extends AbstractVisitor implements NodeRenderer {
 
     private static final Set<String> VIDEO_EXTENSIONS = Collections.unmodifiableSet(
-            new HashSet<>(Arrays.asList("mp4", "webm")));
+            new HashSet<>(Arrays.asList("mp4", "mov", "webm")));
 
     protected final HtmlNodeRendererContext context;
     private final HtmlWriter html;
@@ -183,7 +183,13 @@ public class CoreHtmlNodeRenderer extends AbstractVisitor implements NodeRendere
     public void visit(Image image) {
         String url = image.getDestination();
 
-        MediaType mediaType = detectMediaType(url);
+        // This is a hack to get the `type` attr... but we need
+        // to save the attrs because the node is removed once
+        // it's processed
+        Map<String, String> extendedAttrs = getAttrs(image, "img");
+        String typeAttr = extendedAttrs.remove("type");
+
+        MediaType mediaType = detectMediaType(url, typeAttr);
 
         AltTextVisitor altTextVisitor = new AltTextVisitor();
         image.accept(altTextVisitor);
@@ -194,9 +200,9 @@ public class CoreHtmlNodeRenderer extends AbstractVisitor implements NodeRendere
         }
 
         if (mediaType == MediaType.VIDEO) {
-            renderVideo(image, url, altText);
+            renderVideo(image, url, altText, extendedAttrs);
         } else {
-            renderImage(image, url, altText);
+            renderImage(image, url, altText, extendedAttrs);
         }
     }
 
@@ -276,7 +282,17 @@ public class CoreHtmlNodeRenderer extends AbstractVisitor implements NodeRendere
         html.line();
     }
 
-    private static MediaType detectMediaType(String url) {
+    private static MediaType detectMediaType(String url, String typeAttr) {
+        // If there's a 'type' attribute that matches a media type - force to it
+        if (typeAttr != null) {
+            for (MediaType mediaType : MediaType.values()) {
+                if (mediaType.toString().equalsIgnoreCase(typeAttr)) {
+                    return mediaType;
+                }
+            }
+        }
+
+        // Try to auto-detect the media type
         int extensionStart = url.lastIndexOf('.');
         if (extensionStart < 0) {
             return MediaType.IMAGE;
@@ -290,25 +306,27 @@ public class CoreHtmlNodeRenderer extends AbstractVisitor implements NodeRendere
         }
     }
 
-    private void renderImage(Image image, String url, String altText) {
+    private void renderImage(Image image, String url, String altText, Map<String, String> extendedAttrs) {
         Map<String, String> attrs = new LinkedHashMap<>();
         attrs.put("src", context.encodeUrl(url));
         attrs.put("alt", altText);
         if (image.getTitle() != null) {
             attrs.put("title", image.getTitle());
         }
+        attrs.putAll(extendedAttrs);
 
-        html.tag("img", getAttrs(image, "img", attrs), true);
+        html.tag("img", attrs, true);
     }
 
-    private void renderVideo(Image image, String url, String altText) {
+    private void renderVideo(Image image, String url, String altText, Map<String, String> extendedAttrs) {
         Map<String, String> videoAttrs = new LinkedHashMap<>();
         videoAttrs.put("controls", "");
+        videoAttrs.putAll(extendedAttrs);
 
         Map<String, String> sourceAttrs = new LinkedHashMap<>();
         sourceAttrs.put("src", context.encodeUrl(url));
 
-        html.tag("video", getAttrs(image, "video", videoAttrs));
+        html.tag("video", videoAttrs);
         html.tag("source", sourceAttrs, true);
         html.text(altText);
         html.tag("/video");
