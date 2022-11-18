@@ -112,6 +112,31 @@ public class ImageAttributesTest extends RenderingTestCase {
     }
 
     @Test
+    public void imageForcedWithType() {
+        // This type would normally be auto-detected as video but we force to image with the 'type' attribute
+        assertRendering("![text](/url.mp4){type=image}",
+                "<p><img src=\"/url.mp4\" alt=\"text\" /></p>\n");
+    }
+
+    @Test
+    public void unknownTypeDefaultsToImage() {
+        assertRendering("![text](/url){type=monkey}",
+                "<p><img src=\"/url\" alt=\"text\" /></p>\n");
+    }
+
+    @Test
+    public void videoTagForceType() {
+        assertRendering("![text](/random.file){type=video}",
+                "<p><video controls=\"\"><source src=\"/random.file\" />text</video></p>\n");
+    }
+
+    @Test
+    public void videoTagWithHeightAndWidth() {
+        assertRendering("![text](/url.mp4){height=100 width=200}",
+                "<p><video controls=\"\" height=\"100\" width=\"200\"><source src=\"/url.mp4\" />text</video></p>\n");
+    }
+
+    @Test
     public void textNodesAreUnchanged() {
         assertRendering("x{height=3 width=4}\n", "<p>x{height=3 width=4}</p>\n");
         assertRendering("x {height=3 width=4}\n", "<p>x {height=3 width=4}</p>\n");
